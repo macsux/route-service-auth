@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+//using System.Linq;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
+using Microsoft.AspNetCore.Http;
 using Pivotal.IWA.ServiceLightCore;
 
 namespace RouteService
@@ -22,7 +24,9 @@ namespace RouteService
         {
         }
 
+#pragma warning disable 1998
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
+#pragma warning restore 1998
         {
             if(this.Request.Headers.TryGetValue(this.Options.Header, out var password) && password == this.Options.Password)
             {
@@ -36,6 +40,13 @@ namespace RouteService
                 return AuthenticateResult.Success(ticket);
             }
             return AuthenticateResult.Fail("Not authorized");
+        }
+
+        protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+        {
+            Response.StatusCode = 401;
+            Response.Headers.Append(HeaderNames.WWWAuthenticate, $"Negotiate");
+            return Task.CompletedTask;
         }
     }
 }

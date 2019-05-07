@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+//using System.Net.Http.Headers;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Kerberos.NET;
@@ -29,10 +30,14 @@ namespace RouteService
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddAuthentication(SpnegoAuthenticationDefaults.AuthenticationScheme)
+            services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
                 .AddSpnego()
-//                .AddScheme<TestHeaderAuthenticationOptions,TestHeaderAuthenticationHandler>(SpnegoAuthenticationDefaults.AuthenticationScheme, _ => { })
+//                .AddScheme<TestHeaderAuthenticationOptions, TestHeaderAuthenticationHandler>(SpnegoAuthenticationDefaults.AuthenticationScheme, _ => { })
                 .AddCookie();
+//                .AddCookie(opt =>
+//                {
+//                    opt.EventsType = typeof(KerberosAuthenticationEvents);
+//                });
             services.AddSingleton<KerberosAuthenticationEvents>();
 
             services.AddProxy();
@@ -48,21 +53,41 @@ namespace RouteService
 //            }
 
             app.UseAuthentication().ForbidAnonymous();
-            app.RunProxy(context =>
+            
+            app.RunProxy(async context =>
             {
+                HttpResponseMessage response;
                 if (!context.Request.Headers.TryGetValue(X_CF_Forwarded_Url, out var forwardTo))
                 {
-                    var response = new HttpResponseMessage(HttpStatusCode.BadRequest)
+                    
+                    response = new HttpResponseMessage(HttpStatusCode.BadRequest)
                     {
                         Content = new StringContent($"Required header {X_CF_Forwarded_Url} not present in the request")
                     };
-                    return Task.FromResult(response);
+                    return response;
                 }
                 
 
                 var forwardContext = context.ForwardTo(forwardTo.ToString());
-                forwardContext.HttpContext.Request.Headers.Add("X-CF-Identity", context.User.Identity.Name);
-                return forwardContext.Send();
+                
+                forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
+                forwardContext.UpstreamRequest.Headers.Remove("Authorization");
+//                forwardContext.UpstreamRequest.Headers.GetCookies(".AspNetCore.Cookies");
+//                forwardContext.HttpContext.Request.Headers["Host"] = new Uri(forwardTo.ToString()).Host;
+
+                foreach (var header in forwardContext.UpstreamRequest.Headers)
+                {
+                    Console.WriteLine($"{header.Key}: {header.Value.FirstOrDefault()}");
+                }
+                
+                response = await forwardContext.Send();
+                Console.WriteLine($"Downstream responded with: {response.StatusCode}");
+                foreach (var cookie in context.Response.Headers["Set-Cookie"])
+                {
+                    response.Headers.TryAddWithoutValidation("Set-Cookie", cookie);
+                }
+
+                return response;
             });
         }
     }

@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Pivotal.IWA.ServiceLightCore;
 
 namespace RouteService
 {
@@ -15,9 +16,14 @@ namespace RouteService
             return base.SigningIn(context);
         }
 
-        public override Task ValidatePrincipal(CookieValidatePrincipalContext context)
+        public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
         {
-            return base.ValidatePrincipal(context);
+            if (!context.Principal.Identity.IsAuthenticated)
+            {
+                
+                await context.HttpContext.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
+            }
+            
         }
     }
 }

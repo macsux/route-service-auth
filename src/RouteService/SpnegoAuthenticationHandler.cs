@@ -58,6 +58,8 @@ namespace Pivotal.IWA.ServiceLightCore
             {
                 try
                 {
+                    Console.WriteLine("===Upsteam Token===");
+                    Console.WriteLine(base64Token);
                     var identity = await _authenticator.Authenticate(base64Token);
                     var ticket = new AuthenticationTicket(
                         new ClaimsPrincipal(identity),

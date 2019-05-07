@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using RouteService;
 
@@ -44,12 +45,22 @@ namespace Pivotal.IWA.ServiceLightCore
             {
                 if (!context.User.Identity.IsAuthenticated)
                 {
-                    await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
-                        , new AuthenticationProperties());
-                    return;
+                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
+                    if (authResult.Succeeded)
+                    {
+                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
+                        context.User = authResult.Principal;
+                        await next();
+                    }
+                    else 
+                    { 
+                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
+                            , new AuthenticationProperties());
+                        
+                    }
+                    
                 }
-
-                await next();
+                
             });
         }
 
