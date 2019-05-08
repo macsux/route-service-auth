@@ -2,7 +2,7 @@
 using System.IO;
 using Microsoft.AspNetCore.Authentication;
 
-namespace Pivotal.IWA.ServiceLightCore
+namespace RouteServiceAuth
 {
     public class SpnegoAuthenticationOptions : AuthenticationSchemeOptions
     {

@@ -1,33 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
 using System.Net.Http;
-//using System.Net.Http.Headers;
-using System.Text.Encodings.Web;
-using System.Threading.Tasks;
-using Kerberos.NET;
-using Kerberos.NET.Crypto;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Pivotal.IWA.ServiceLightCore;
 using ProxyKit;
+//using System.Net.Http.Headers;
 
-namespace RouteService
+namespace RouteServiceAuth
 {
     
 
     public class Startup
     {
+        private readonly ILogger<Startup> _logger;
+
         const string X_CF_Forwarded_Url = "X-CF-Forwarded-Url";
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
+        public Startup(ILogger<Startup> logger)
+        {
+            _logger = logger;
+        }
+
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -52,18 +50,39 @@ namespace RouteService
 //                app.UseDeveloperExceptionPage();
 //            }
 
-            app.UseAuthentication().ForbidAnonymous();
-            
+            app.UseAuthentication();
+            app.Use(async (context, next) =>
+            {
+                if (!context.User.Identity.IsAuthenticated)
+                {
+                    
+                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
+                    if (authResult.Succeeded)
+                    {
+                        _logger.LogDebug($"User {authResult.Principal.Identity.Name} successfully logged in");
+                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
+                        context.User = authResult.Principal;
+                    }
+                    else
+                    {
+                        _logger.LogDebug("User authentication failed, issuing WWW-Authenticate challenge");
+                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
+                            , new AuthenticationProperties());
+                        return;
+                    }
+                }
+                await next();
+            });
             app.RunProxy(async context =>
             {
                 HttpResponseMessage response;
                 if (!context.Request.Headers.TryGetValue(X_CF_Forwarded_Url, out var forwardTo))
                 {
-                    
                     response = new HttpResponseMessage(HttpStatusCode.BadRequest)
                     {
                         Content = new StringContent($"Required header {X_CF_Forwarded_Url} not present in the request")
                     };
+                    _logger.LogDebug($"Received request without {X_CF_Forwarded_Url} header");
                     return response;
                 }
                 
@@ -72,16 +91,18 @@ namespace RouteService
                 
                 forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
                 forwardContext.UpstreamRequest.Headers.Remove("Authorization");
-//                forwardContext.UpstreamRequest.Headers.GetCookies(".AspNetCore.Cookies");
-//                forwardContext.HttpContext.Request.Headers["Host"] = new Uri(forwardTo.ToString()).Host;
 
+                _logger.LogTrace("Headers sent downstream");
+                _logger.LogTrace("-----------------------");
                 foreach (var header in forwardContext.UpstreamRequest.Headers)
                 {
-                    Console.WriteLine($"{header.Key}: {header.Value.FirstOrDefault()}");
+                    _logger.LogTrace($"  {header.Key}: {header.Value.FirstOrDefault()}");
                 }
                 
                 response = await forwardContext.Send();
-                Console.WriteLine($"Downstream responded with: {response.StatusCode}");
+                _logger.LogDebug($"Downstream responded with: {response.StatusCode}");
+                
+                // merge cookie header set at the proxy level with headers from downstream request 
                 foreach (var cookie in context.Response.Headers["Set-Cookie"])
                 {
                     response.Headers.TryAddWithoutValidation("Set-Cookie", cookie);

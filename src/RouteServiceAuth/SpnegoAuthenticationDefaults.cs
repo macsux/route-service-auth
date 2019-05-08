@@ -1,4 +1,4 @@
-﻿namespace Pivotal.IWA.ServiceLightCore
+﻿namespace RouteServiceAuth
 {
     public class SpnegoAuthenticationDefaults
     {

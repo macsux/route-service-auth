@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Builder;
-using RouteService;
 
-namespace Pivotal.IWA.ServiceLightCore
+namespace RouteServiceAuth
 {
     public static class SpnegoAuthenticationExtensions
     {
@@ -39,30 +35,7 @@ namespace Pivotal.IWA.ServiceLightCore
             return builder.AddScheme<SpnegoAuthenticationOptions, SpnegoAuthenticationHandler>(authenticationScheme, configureOptions);
         }
 
-        public static IApplicationBuilder ForbidAnonymous(this IApplicationBuilder app)
-        {
-            return app.Use(async (context, next) =>
-            {
-                if (!context.User.Identity.IsAuthenticated)
-                {
-                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
-                    if (authResult.Succeeded)
-                    {
-                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
-                        context.User = authResult.Principal;
-                        await next();
-                    }
-                    else 
-                    { 
-                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
-                            , new AuthenticationProperties());
-                        
-                    }
-                    
-                }
-                
-            });
-        }
+       
 
     }
 }

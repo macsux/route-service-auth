@@ -1,17 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-//using System.Linq;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
-using Microsoft.AspNetCore.Http;
-using Pivotal.IWA.ServiceLightCore;
+//using System.Linq;
 
-namespace RouteService
+namespace RouteServiceAuth
 {
     public class TestHeaderAuthenticationOptions : AuthenticationSchemeOptions
     {

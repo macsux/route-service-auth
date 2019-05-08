@@ -11,20 +11,20 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
-namespace Pivotal.IWA.ServiceLightCore
+namespace RouteServiceAuth
 {
     public class SpnegoAuthenticationHandler : AuthenticationHandler<SpnegoAuthenticationOptions>
     {
         private const string SchemeName = "Negotiate";
         private KerberosAuthenticator _authenticator;
         private readonly IDisposable _monitorHandle;
-        
+
 
         public SpnegoAuthenticationHandler(
             IOptionsMonitor<SpnegoAuthenticationOptions> options,
-            ILoggerFactory logger,
+            ILoggerFactory loggerFactory,
             UrlEncoder encoder,
-            ISystemClock clock) : base(options, logger, encoder, clock)
+            ISystemClock clock) : base(options, loggerFactory, encoder, clock)
         {
             _monitorHandle = options.OnChange(CreateAuthenticator);
         }
@@ -35,6 +35,7 @@ namespace Pivotal.IWA.ServiceLightCore
                 _authenticator = new KerberosAuthenticator(new KerberosValidator(new KerberosKey(options.PrincipalPassword)));
             else
                 _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(Options.KeytabFile)));
+            _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
         }
 
 
@@ -58,8 +59,8 @@ namespace Pivotal.IWA.ServiceLightCore
             {
                 try
                 {
-                    Console.WriteLine("===Upsteam Token===");
-                    Console.WriteLine(base64Token);
+                    Logger.LogTrace("===SPNEGO Token===");
+                    Logger.LogTrace(base64Token);
                     var identity = await _authenticator.Authenticate(base64Token);
                     var ticket = new AuthenticationTicket(
                         new ClaimsPrincipal(identity),
