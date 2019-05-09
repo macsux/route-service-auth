@@ -6,9 +6,13 @@ Additionally when authentication is established, a session cookie will be issued
 
 This implementation relies on fully managed Kerberos ticket parser provided via [Kerberos.NET](	<https://github.com/SteveSyfuhs/Kerberos.NET>) library and does not require any communication with the domain controller. **The only requirement to make this work is to provide route service the SPN password**
 
+## How to build
 
+- Install [.NET Core 2.2 SDK](<https://dotnet.microsoft.com/download>)
+- Run `dotnet publish` in src directory
 
 ## How to use
+
 Route service requires password of the service principal for which the ticket is intended. This must be supplied either via PRINCIPAL_PASSWORD environmental variable or specifying path to keytab containing the credentials for the principal via KRB5_CLIENT_KTNAME environmental variable
 - Push with included manifest
 - On the downstream app, create a CUPS with route service URL and bind it to the the application route
