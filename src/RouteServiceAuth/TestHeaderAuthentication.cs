@@ -10,6 +10,9 @@ using Microsoft.Net.Http.Headers;
 
 namespace RouteServiceAuth
 {
+    /// <summary>
+    /// This class is only used for testing and not part of regular execution pipeline
+    /// </summary>
     public class TestHeaderAuthenticationOptions : AuthenticationSchemeOptions
     {
         public string Header { get; set; } = "X-Password";

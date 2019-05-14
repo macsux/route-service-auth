@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security.Authentication;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
@@ -10,6 +13,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using Novell.Directory.Ldap;
+using SecurityIdentifier = System.Security.Principal.SecurityIdentifier;
 
 namespace RouteServiceAuth
 {
@@ -18,6 +23,8 @@ namespace RouteServiceAuth
         private const string SchemeName = "Negotiate";
         private KerberosAuthenticator _authenticator;
         private readonly IDisposable _monitorHandle;
+        private Dictionary<SecurityIdentifier, string> _sidsToGroupNames = new Dictionary<SecurityIdentifier, string>();
+        private bool _groupsLoaded = false;
 
 
         public SpnegoAuthenticationHandler(
@@ -36,6 +43,22 @@ namespace RouteServiceAuth
             else
                 _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(Options.KeytabFile)));
             _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
+            if (Options.Ldap.Server != null && Options.Ldap.Username != null && Options.Ldap.Password != null)
+            {
+                try
+                {
+                    using var cn = new LdapConnection();
+                    cn.Connect(Options.Ldap.Server, Options.Ldap.Port);
+                    cn.Bind(Options.Ldap.Username, Options.Ldap.Password);
+                    _sidsToGroupNames = cn.Search(Options.Ldap.GroupsQuery, LdapConnection.ScopeSub, options.Ldap.Filter, null, false)
+                        .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0), x => x.GetAttribute("sAMAccountName").StringValue);
+                    _groupsLoaded = true;
+                }
+                catch (Exception e)
+                {
+                    throw new AuthenticationException("Failed to load groups from LDAP", e);
+                }
+            }
         }
 
 
@@ -62,6 +85,8 @@ namespace RouteServiceAuth
                     Logger.LogTrace("===SPNEGO Token===");
                     Logger.LogTrace(base64Token);
                     var identity = await _authenticator.Authenticate(base64Token);
+                    MapSidsToGroupNames(identity);
+
                     var ticket = new AuthenticationTicket(
                         new ClaimsPrincipal(identity),
                         new AuthenticationProperties(),
@@ -76,6 +101,20 @@ namespace RouteServiceAuth
             catch (Exception)
             {
                 return AuthenticateResult.Fail("Access denied");
+            }
+        }
+
+        private void MapSidsToGroupNames(ClaimsIdentity identity)
+        {
+            if (!_groupsLoaded) return;
+            foreach (var sidGroupClaim in identity.Claims.Where(x => x.Type == ClaimTypes.GroupSid).ToList())
+            {
+                var sid = new SecurityIdentifier(sidGroupClaim.Value);
+                if (!_sidsToGroupNames.TryGetValue(sid, out var group)) continue;
+                if (!identity.HasClaim(ClaimTypes.Role, group))
+                {
+                    identity.AddClaim(new Claim(ClaimTypes.Role, group));
+                }
             }
         }
 
