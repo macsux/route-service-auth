@@ -1,12 +1,11 @@
 {
-  
   "profiles": {
-  
     "RouteService": {
       "commandName": "Project",
       "environmentVariables": {
         "Principal_Password": "New0rder",
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "KRB5_CONFIG": "C:\\projects\\route-service-auth\\src\\krb5.conf"
       },
       "applicationUrl": "https://localhost:5001;http://localhost:5000"
     }
