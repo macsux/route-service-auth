@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using Microsoft.AspNetCore.Authentication;
@@ -51,28 +52,28 @@ namespace RouteServiceAuth
 //            }
 
             app.UseAuthentication();
-            app.Use(async (context, next) =>
-            {
-                if (!context.User.Identity.IsAuthenticated)
-                {
-                    
-                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
-                    if (authResult.Succeeded)
-                    {
-                        _logger.LogDebug($"User {authResult.Principal.Identity.Name} successfully logged in");
-                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
-                        context.User = authResult.Principal;
-                    }
-                    else
-                    {
-                        _logger.LogDebug("User authentication failed, issuing WWW-Authenticate challenge");
-                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
-                            , new AuthenticationProperties());
-                        return;
-                    }
-                }
-                await next();
-            });
+//            app.Use(async (context, next) =>
+//            {
+//                if (!context.User.Identity.IsAuthenticated)
+//                {
+//                    
+//                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
+//                    if (authResult.Succeeded)
+//                    {
+//                        _logger.LogDebug($"User {authResult.Principal.Identity.Name} successfully logged in");
+//                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
+//                        context.User = authResult.Principal;
+//                    }
+//                    else
+//                    {
+//                        _logger.LogDebug("User authentication failed, issuing WWW-Authenticate challenge");
+//                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
+//                            , new AuthenticationProperties());
+//                        return;
+//                    }
+//                }
+//                await next();
+//            });
             app.RunProxy(async context =>
             {
                 HttpResponseMessage response;
@@ -88,8 +89,9 @@ namespace RouteServiceAuth
                 
 
                 var forwardContext = context.ForwardTo(forwardTo.ToString());
+                forwardContext.UpstreamRequest.RequestUri = new Uri(forwardTo);
                 
-                forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
+//                forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
                 forwardContext.UpstreamRequest.Headers.Remove("Authorization");
 
                 _logger.LogTrace("Headers sent downstream");
