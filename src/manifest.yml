@@ -1,6 +1,6 @@
 applications:
 - name: iwa-route-service
-  path: RouteServiceAuth/bin/Debug/netcoreapp2.2/publish
+  path: RouteServiceAuth/bin/Release/netcoreapp2.2/publish
   env:
     PRINCIPAL_PASSWORD: SomePassword
   instances: 1

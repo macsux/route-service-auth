@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
@@ -19,12 +20,14 @@ namespace RouteServiceAuth
     {
         private readonly ILogger<Startup> _logger;
 
-        const string X_CF_Forwarded_Url = "X-CF-Forwarded-Url";
+        private readonly IConfiguration _configuration;
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
-        public Startup(ILogger<Startup> logger)
+        public Startup(ILogger<Startup> logger, IConfiguration configuration)
         {
             _logger = logger;
+            _configuration = configuration;
         }
 
         public void ConfigureServices(IServiceCollection services)
@@ -38,7 +41,7 @@ namespace RouteServiceAuth
 //                    opt.EventsType = typeof(KerberosAuthenticationEvents);
 //                });
             services.AddSingleton<KerberosAuthenticationEvents>();
-
+            services.AddWhitelist(_configuration);
             services.AddProxy();
         }
 
@@ -51,25 +54,32 @@ namespace RouteServiceAuth
 //                app.UseDeveloperExceptionPage();
 //            }
 
+            var whitelist = app.ApplicationServices.GetRequiredService<IWhitelist>();
             app.UseAuthentication();
             app.Use(async (context, next) =>
             {
                 if (!context.User.Identity.IsAuthenticated)
                 {
-                    
-                    var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
-                    if (authResult.Succeeded)
+                    if(whitelist.IsWhitelisted(context.Request))
                     {
-                        _logger.LogDebug($"User {authResult.Principal.Identity.Name} successfully logged in");
-                        await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
-                        context.User = authResult.Principal;
+                        _logger.LogInformation($"Allowing passthrough for whitelisted request {context.Request.Path}");
                     }
                     else
                     {
-                        _logger.LogDebug("User authentication failed, issuing WWW-Authenticate challenge");
-                        await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
-                            , new AuthenticationProperties());
-                        return;
+                        var authResult = await context.AuthenticateAsync(SpnegoAuthenticationDefaults.AuthenticationScheme);
+                        if (authResult.Succeeded)
+                        {
+                            _logger.LogDebug($"User {authResult.Principal.Identity.Name} successfully logged in");
+                            await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal);
+                            context.User = authResult.Principal;
+                        }
+                        else
+                        {
+                            _logger.LogDebug("User authentication failed, issuing WWW-Authenticate challenge");
+                            await context.ChallengeAsync(SpnegoAuthenticationDefaults.AuthenticationScheme
+                                , new AuthenticationProperties());
+                            return;
+                        }
                     }
                 }
                 await next();
@@ -77,22 +87,28 @@ namespace RouteServiceAuth
             app.RunProxy(async context =>
             {
                 HttpResponseMessage response;
-                if (!context.Request.Headers.TryGetValue(X_CF_Forwarded_Url, out var forwardTo))
+                if (!context.Request.Headers.TryGetForwardAddress(out var forwardTo))
                 {
                     response = new HttpResponseMessage(HttpStatusCode.BadRequest)
                     {
-                        Content = new StringContent($"Required header {X_CF_Forwarded_Url} not present in the request")
+                        Content = new StringContent($"Required header {Constants.X_CF_Forwarded_Url} not present in the request")
                     };
-                    _logger.LogDebug($"Received request without {X_CF_Forwarded_Url} header");
+                    _logger.LogDebug($"Received request without {Constants.X_CF_Forwarded_Url} header");
                     return response;
                 }
-                
 
-                var forwardContext = context.ForwardTo(forwardTo.ToString());
+                var forwardContext = context.ForwardTo(forwardTo);
                 forwardContext.UpstreamRequest.RequestUri = new Uri(forwardTo);
                 
-                forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
-                forwardContext.UpstreamRequest.Headers.Remove("Authorization");
+                if(whitelist.IsWhitelisted(context.Request))
+                {
+                    _logger.LogInformation($"Allowing passthrough for whitelisted request {forwardTo}");
+                }
+                else
+                {
+                    forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
+                    forwardContext.UpstreamRequest.Headers.Remove("Authorization");
+                }
 
                 _logger.LogTrace("Headers sent downstream");
                 _logger.LogTrace("-----------------------");
