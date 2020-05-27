@@ -48,7 +48,7 @@ namespace RouteServiceAuth
                 using var cn = new LdapConnection();
                 cn.Connect(Options.LdapServer, Options.LdapPort);
                 cn.Bind(Options.LdapUsername, Options.LdapPassword);
-                _sidsToGroupNames = cn.Search(Options.LdapGroupsQuery, LdapConnection.ScopeSub, "(objectClass=group)", null, false)
+                _sidsToGroupNames = cn.Search(Options.LdapGroupsQuery, LdapConnection.ScopeSub, options.LdapFilter, null, false)
                     .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0), x => x.GetAttribute("sAMAccountName").StringValue);
                 _groupsLoaded = true;
             }

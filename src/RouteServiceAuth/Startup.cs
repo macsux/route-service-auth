@@ -80,7 +80,7 @@ namespace RouteServiceAuth
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddAuthentication(SpnegoAuthenticationDefaults.AuthenticationScheme)
-                .AddSpnego();
+                .AddSpnego(options => Configuration.GetSection("Ldap").Bind(options));
 //                .AddScheme<TestHeaderAuthenticationOptions, TestHeaderAuthenticationHandler>(SpnegoAuthenticationDefaults.AuthenticationScheme, _ => { })
                 // .AddCookie();
 //                .AddCookie(opt =>
