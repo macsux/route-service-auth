@@ -1,10 +1,9 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Internal;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Steeltoe.Extensions.Configuration.CloudFoundry;
 using Steeltoe.Extensions.Configuration.ConfigServer;
 
@@ -20,17 +19,13 @@ namespace RouteServiceAuth
 
         public static IWebHostBuilder CreateWebHostBuilder(string[] args)
         {
-            var hostingEnv = new HostingEnvironment();
-            var options = new WebHostOptions(new ConfigurationBuilder().AddEnvironmentVariables("ASPNETCORE_").Build());
-            hostingEnv.Initialize(ResolveContentRootPath(Directory.GetCurrentDirectory(), AppContext.BaseDirectory),options);
-            var config = new ConfigurationBuilder()
-                .SetBasePath(AppContext.BaseDirectory)
-                .AddJsonFile("appsettings.json", true, true)
-                .AddJsonFile($"appsettings.{hostingEnv.ContentRootPath}.json", true, true)
+            var webHost = WebHost.CreateDefaultBuilder(args)
                 .AddConfigServer()
+                .UseStartup<Startup>()
                 .Build();
+            var config = webHost.Services.GetRequiredService<IConfiguration>();
             var proxyMap = new ProxyMap().BindFrom(config);
-            
+
             return WebHost.CreateDefaultBuilder(args)
                 .AddCloudFoundry()
                 .AddConfigServer()
@@ -38,14 +33,7 @@ namespace RouteServiceAuth
                 .UseStartup<Startup>();
             
         }
-        private static string ResolveContentRootPath(string contentRootPath, string basePath)
-        {
-            if (string.IsNullOrEmpty(contentRootPath))
-                return basePath;
-            if (Path.IsPathRooted(contentRootPath))
-                return contentRootPath;
-            return Path.Combine(Path.GetFullPath(basePath), contentRootPath);
-        }
+
     }
 
     public static class WebHostBuilderExtensions

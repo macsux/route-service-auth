@@ -6,11 +6,14 @@ namespace RouteServiceAuth
 {
     public class SpnegoAuthenticationOptions : AuthenticationSchemeOptions
     {
-        /// <summary>
-        ///     Kerberos SPN used to accept the ticket. The password to this principal should exist in keytab.
-        ///     Ex. http/www.myservice.com@DOMAIN.COM OR myserviceaccount@DOMAIN.COM
-        /// </summary>
-//        public string ServicePrincipalName { get; set; }
+        public string LdapFilter { get; set; } = "(objectClass=group)";
+        public string LdapGroupsQuery { get; set; }
+
+        public string LdapServer { get; set; }
+        public int LdapPort { get; set; } = 389;
+        public string LdapUsername { get; set; }
+        public string LdapPassword { get; set; }
+
         public string PrincipalPassword { get; set; } = Environment.GetEnvironmentVariable("PRINCIPAL_PASSWORD");
 
         /// <summary>

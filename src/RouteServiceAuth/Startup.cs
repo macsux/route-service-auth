@@ -5,19 +5,20 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Text.RegularExpressions;
+using Kerberos.NET.Client;
+using Kerberos.NET.Credentials;
+using Kerberos.NET.Entities.Pac;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.GssKerberos;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using ProxyKit;
-//using System.Net.Http.Headers;
 
 namespace RouteServiceAuth
 {
@@ -78,30 +79,27 @@ namespace RouteServiceAuth
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-                .AddSpnego()
+            services.AddAuthentication(SpnegoAuthenticationDefaults.AuthenticationScheme)
+                .AddSpnego();
 //                .AddScheme<TestHeaderAuthenticationOptions, TestHeaderAuthenticationHandler>(SpnegoAuthenticationDefaults.AuthenticationScheme, _ => { })
-                .AddCookie();
+                // .AddCookie();
 //                .AddCookie(opt =>
 //                {
 //                    opt.EventsType = typeof(KerberosAuthenticationEvents);
 //                });
             services.AddSingleton<KerberosAuthenticationEvents>();
             services.AddSingleton<ProxyMap>(ctx => new ProxyMap().BindFrom(Configuration));
-//            services.AddOptions<ProxyMap>().Configure(opt => opt.BindFrom(Configuration));
             services.AddProxy();
         }
 
        
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app)
         {
+            
             var features = app.ServerFeatures.ToArray();
-//            if (env.IsDevelopment())
-//            {
-//                app.UseDeveloperExceptionPage();
-//            }
+
             app.MapWhen(context => context.Request.HttpContext.Connection.LocalPort > 10000
                 , map =>
                 {
@@ -114,24 +112,14 @@ namespace RouteServiceAuth
                             return;
                         }
 
-                        EnsureTgt(proxySettings.ClientLogin);
-                        string kerberosTicket;
-                        using (var clientCredentials = GssCredentials.FromKeytab(proxySettings.ClientLogin, CredentialUsage.Initiate))
-                        using (var initiator = new GssInitiator(credential: clientCredentials, spn: proxySettings.TargetSpn))
-                        {
-                            try
-                            {
-                                kerberosTicket = Convert.ToBase64String(initiator.Initiate(null));
-                            }
-                            catch(GssException exception)
-                            {
-                                await ctx.Response.WriteAsync($"Unable to acquire ticket for SPN {proxySettings.TargetSpn} using client identity {proxySettings.ClientLogin}");
-                                await ctx.Response.WriteAsync(exception.Message);
-                                return;
-                            }
-                        }
+                        var config = ctx.RequestServices.GetRequiredService<IConfiguration>();
+                        var client = new KerberosClient(config.GetValue<string>("Kerberos:Kdc"));
+                        var kerbCred = new KerberosPasswordCredential(proxySettings.ClientLogin, proxySettings.ClientPassword);
+                        await client.Authenticate(kerbCred);
+                        var kerberosTicket = await client.GetServiceTicket(proxySettings.TargetSpn);
+                        
 
-                        ctx.Items["KerberosTicket"] = kerberosTicket;
+                        ctx.Items["KerberosTicket"] = Convert.ToBase64String(kerberosTicket.EncodeApplication().ToArray());
                         ctx.Items["ProxySettings"] = proxySettings;
                         await next();
                     });
@@ -191,6 +179,7 @@ namespace RouteServiceAuth
                         var forwardContext = context.ForwardTo(forwardTo.ToString());
 
                         forwardContext.UpstreamRequest.Headers.Add("X-CF-Identity", context.User.Identity.Name);
+                        forwardContext.UpstreamRequest.Headers.Add("X-CF-Roles", string.Join(",", context.User.Claims.Where(x => x.Type == ClaimTypes.Role).Select(x => x.Value)));
                         forwardContext.UpstreamRequest.Headers.Remove("Authorization");
 
                         _logger.LogTrace("Headers sent downstream");
