@@ -33,7 +33,10 @@ namespace RouteServiceAuth
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddAuthentication(SpnegoAuthenticationDefaults.AuthenticationScheme)
-                .AddSpnego(options => _configuration.Bind(options));
+                .AddSpnego(options =>
+                {
+                    _configuration.Bind(options);
+                });
 //                .AddScheme<TestHeaderAuthenticationOptions, TestHeaderAuthenticationHandler>(SpnegoAuthenticationDefaults.AuthenticationScheme, _ => { })
             // .AddCookie();
 

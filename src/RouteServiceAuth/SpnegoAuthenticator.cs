@@ -8,6 +8,7 @@ using System.Security.Principal;
 using System.Threading.Tasks;
 using Kerberos.NET;
 using Kerberos.NET.Crypto;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Novell.Directory.Ldap;
 
@@ -15,7 +16,7 @@ namespace RouteServiceAuth
 {
     public class SpnegoAuthenticator
     {
-        private readonly IOptionsMonitor<SpnegoAuthenticationOptions> _options;
+        private readonly SpnegoAuthenticationOptions _options = new SpnegoAuthenticationOptions();
         // public SpnegoAuthenticationOptions Options => _options.CurrentValue;
         private bool _groupsLoaded = false;
         private KerberosAuthenticator _authenticator;
@@ -23,11 +24,11 @@ namespace RouteServiceAuth
         private Dictionary<SecurityIdentifier, string> _sidsToGroupNames = new Dictionary<SecurityIdentifier, string>();
 
 
-        public SpnegoAuthenticator(IOptionsMonitor<SpnegoAuthenticationOptions> options)
+        public SpnegoAuthenticator(IConfiguration configuration)
         {
-            _options = options;
-            _monitorHandle = options.OnChange(CreateAuthenticator);
-            CreateAuthenticator(options.CurrentValue);
+            configuration.Bind(_options);
+            // _monitorHandle = options.OnChange(CreateAuthenticator);
+            CreateAuthenticator(_options);
         }
 
 

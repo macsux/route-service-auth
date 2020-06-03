@@ -29,7 +29,8 @@ namespace RouteServiceAuth
             IOptionsMonitor<SpnegoAuthenticationOptions> options,
             ILoggerFactory loggerFactory,
             UrlEncoder encoder,
-            ISystemClock clock, SpnegoAuthenticator authenticator) : base(options, loggerFactory, encoder, clock)
+            ISystemClock clock, 
+            SpnegoAuthenticator authenticator) : base(options, loggerFactory, encoder, clock)
         {
             _authenticator = authenticator;
         }

@@ -35,8 +35,7 @@ namespace RouteServiceAuth
             Action<SpnegoAuthenticationOptions> configureOptions)
         {
             builder.Services.AddSingleton<SpnegoAuthenticator>();
-            var result =  builder.AddScheme<SpnegoAuthenticationOptions, SpnegoAuthenticationHandler>(authenticationScheme, configureOptions);
-            return result;
+            return builder.AddScheme<SpnegoAuthenticationOptions, SpnegoAuthenticationHandler>(authenticationScheme, configureOptions);
         }
 
        
