@@ -4,13 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Security.Authentication;
 using System.Security.Claims;
-using System.Security.Principal;
+// using System.Security.Principal;
 using System.Threading.Tasks;
 using Kerberos.NET;
 using Kerberos.NET.Crypto;
+using Kerberos.NET.Entities.Pac;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Novell.Directory.Ldap;
+using SecurityIdentifier = RouteServiceAuth.Kerberos.NET.SecurityIdentifier;
 
 namespace RouteServiceAuth
 {
@@ -21,7 +23,7 @@ namespace RouteServiceAuth
         private bool _groupsLoaded = false;
         private KerberosAuthenticator _authenticator;
         private IDisposable _monitorHandle;
-        private Dictionary<SecurityIdentifier, string> _sidsToGroupNames = new Dictionary<SecurityIdentifier, string>();
+        private Dictionary<string, string> _sidsToGroupNames = new Dictionary<string, string>();
 
 
         public SpnegoAuthenticator(IConfiguration configuration)
@@ -47,7 +49,7 @@ namespace RouteServiceAuth
                     cn.Connect(options.Ldap.Server, options.Ldap.Port);
                     cn.Bind(options.Ldap.Username, options.Ldap.Password);
                     _sidsToGroupNames = cn.Search(options.Ldap.GroupsQuery, LdapConnection.ScopeSub, options.Ldap.Filter, null, false)
-                        .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0), x => x.GetAttribute("sAMAccountName").StringValue);
+                        .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0).Value, x => x.GetAttribute("sAMAccountName").StringValue);
                     _groupsLoaded = true;
                 }
                 catch (Exception e)
@@ -68,7 +70,7 @@ namespace RouteServiceAuth
             if (!_groupsLoaded) return;
             foreach (var sidGroupClaim in identity.Claims.Where(x => x.Type == ClaimTypes.GroupSid).ToList())
             {
-                var sid = new SecurityIdentifier(sidGroupClaim.Value);
+                var sid = sidGroupClaim.Value;
                 if (!_sidsToGroupNames.TryGetValue(sid, out var group)) continue;
                 if (!identity.HasClaim(ClaimTypes.Role, group))
                 {

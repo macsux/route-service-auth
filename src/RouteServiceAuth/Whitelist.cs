@@ -1,3 +1,5 @@
+using RouteServiceAuth.Kerberos.NET;
+
 namespace RouteServiceAuth
 {
     using System;
