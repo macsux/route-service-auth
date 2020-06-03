@@ -20,46 +20,21 @@ namespace RouteServiceAuth
 {
     public class SpnegoAuthenticationHandler : AuthenticationHandler<SpnegoAuthenticationOptions>
     {
+        private readonly SpnegoAuthenticator _authenticator;
         private const string SchemeName = "Negotiate";
-        private KerberosAuthenticator _authenticator;
         private readonly IDisposable _monitorHandle;
-        private Dictionary<SecurityIdentifier, string> _sidsToGroupNames = new Dictionary<SecurityIdentifier, string>();
-        private bool _groupsLoaded = false;
 
 
         public SpnegoAuthenticationHandler(
             IOptionsMonitor<SpnegoAuthenticationOptions> options,
             ILoggerFactory loggerFactory,
             UrlEncoder encoder,
-            ISystemClock clock) : base(options, loggerFactory, encoder, clock)
+            ISystemClock clock, SpnegoAuthenticator authenticator) : base(options, loggerFactory, encoder, clock)
         {
-            _monitorHandle = options.OnChange(CreateAuthenticator);
+            _authenticator = authenticator;
         }
 
-        private void CreateAuthenticator(SpnegoAuthenticationOptions options)
-        {
-            if (Options.PrincipalPassword != null)
-                _authenticator = new KerberosAuthenticator(new KerberosValidator(new KerberosKey(options.PrincipalPassword)));
-            else
-                _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(Options.KeytabFile)));
-            _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
-            if (Options.Ldap.Server != null && Options.Ldap.Username != null && Options.Ldap.Password != null)
-            {
-                try
-                {
-                    using var cn = new LdapConnection();
-                    cn.Connect(Options.Ldap.Server, Options.Ldap.Port);
-                    cn.Bind(Options.Ldap.Username, Options.Ldap.Password);
-                    _sidsToGroupNames = cn.Search(Options.Ldap.GroupsQuery, LdapConnection.ScopeSub, options.Ldap.Filter, null, false)
-                        .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0), x => x.GetAttribute("sAMAccountName").StringValue);
-                    _groupsLoaded = true;
-                }
-                catch (Exception e)
-                {
-                    throw new AuthenticationException("Failed to load groups from LDAP", e);
-                }
-            }
-        }
+        
 
 
         protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -85,7 +60,6 @@ namespace RouteServiceAuth
                     Logger.LogTrace("===SPNEGO Token===");
                     Logger.LogTrace(base64Token);
                     var identity = await _authenticator.Authenticate(base64Token);
-                    MapSidsToGroupNames(identity);
 
                     var ticket = new AuthenticationTicket(
                         new ClaimsPrincipal(identity),
@@ -104,19 +78,7 @@ namespace RouteServiceAuth
             }
         }
 
-        private void MapSidsToGroupNames(ClaimsIdentity identity)
-        {
-            if (!_groupsLoaded) return;
-            foreach (var sidGroupClaim in identity.Claims.Where(x => x.Type == ClaimTypes.GroupSid).ToList())
-            {
-                var sid = new SecurityIdentifier(sidGroupClaim.Value);
-                if (!_sidsToGroupNames.TryGetValue(sid, out var group)) continue;
-                if (!identity.HasClaim(ClaimTypes.Role, group))
-                {
-                    identity.AddClaim(new Claim(ClaimTypes.Role, group));
-                }
-            }
-        }
+
 
         protected override Task HandleChallengeAsync(AuthenticationProperties properties)
         {
@@ -128,7 +90,6 @@ namespace RouteServiceAuth
 
         protected override Task InitializeHandlerAsync()
         {
-            CreateAuthenticator(Options);
             return Task.CompletedTask;
         }
     }

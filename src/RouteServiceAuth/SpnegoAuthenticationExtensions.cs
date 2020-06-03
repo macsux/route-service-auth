@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace RouteServiceAuth
 {
@@ -32,7 +34,9 @@ namespace RouteServiceAuth
             string authenticationScheme,
             Action<SpnegoAuthenticationOptions> configureOptions)
         {
-            return builder.AddScheme<SpnegoAuthenticationOptions, SpnegoAuthenticationHandler>(authenticationScheme, configureOptions);
+            builder.Services.AddSingleton<SpnegoAuthenticator>();
+            var result =  builder.AddScheme<SpnegoAuthenticationOptions, SpnegoAuthenticationHandler>(authenticationScheme, configureOptions);
+            return result;
         }
 
        
