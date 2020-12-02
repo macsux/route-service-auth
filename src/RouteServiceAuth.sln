@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RouteServiceAuth", "RouteSe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KerberosUtil", "KerberosUtil\KerberosUtil.csproj", "{9CF5129C-0737-4A3D-AE15-200536B97B09}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleApp", "SampleApp\SampleApp.csproj", "{9E364BDC-9A99-4193-B8DF-CC224CA74F8A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{9CF5129C-0737-4A3D-AE15-200536B97B09}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9CF5129C-0737-4A3D-AE15-200536B97B09}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9CF5129C-0737-4A3D-AE15-200536B97B09}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E364BDC-9A99-4193-B8DF-CC224CA74F8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E364BDC-9A99-4193-B8DF-CC224CA74F8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E364BDC-9A99-4193-B8DF-CC224CA74F8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E364BDC-9A99-4193-B8DF-CC224CA74F8A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

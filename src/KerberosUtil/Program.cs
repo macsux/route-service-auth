@@ -1,9 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using System.Linq;
 using System.Threading.Tasks;
+using Kerberos.NET;
 using Kerberos.NET.Client;
+using Kerberos.NET.Configuration;
 using Kerberos.NET.Credentials;
+using Kerberos.NET.Crypto;
+using Kerberos.NET.Entities;
 
 namespace KerberosUtil
 {
@@ -28,8 +34,24 @@ namespace KerberosUtil
             };
             getTicketCommand.Handler = CommandHandler.Create<string,string,string,string>(async(kdc, user, password, spn) =>
             {
-                var client = new KerberosClient(kdc);
+                var split = user.Split("@");
+                if (split.Length != 2)
+                {
+                    throw new Exception("User must be in <user>@<domain> format");
+                }
 
+                var domain = split[1];
+                var config = Krb5Config.Default();
+                var realmConfig = new Krb5RealmConfig();
+                var kdcList = new List<string> {kdc};
+                // realmConfig.GetType().GetProperty(nameof(realmConfig.Kdc)).SetValue(realmConfig, kdcList);
+                // var realms = new Dictionary<string, Krb5RealmConfig>();
+                // realms.Add(domain.ToUpper(), realmConfig);
+                // config.GetType().GetProperty(nameof(config.Realms)).SetValue(config, realms);
+                config.Realms[domain.ToUpper()].Kdc.Add(kdc);
+                var client = new KerberosClient(config);
+                
+                
                 var kerbCred = new KerberosPasswordCredential(user, password);
                 await client.Authenticate(kerbCred);
 
@@ -38,9 +60,44 @@ namespace KerberosUtil
                 Console.WriteLine(ticket64);
                 
             });
+            
+            var validateTicket = new Command("validate-ticket")
+            {
+                new Option<string>(
+                    "--password",
+                    description: "Principal password") {Required = true},
+                new Option<string>(
+                    "--domain",
+                    description: "Domain name") { Required = true},
+                new Option<string>(
+                    "--user",
+                    description: "Username if this is a User Account (case sensitive)"),
+                new Option<string>(
+                    "--computer",
+                    description: "Computer name (without $) if this is a Computer Account  (case sensitive)"),
+                new Option<string>(
+                "--ticket",
+                description: "Base64 ticket") { Required = true},
+            };
+            validateTicket.Handler = CommandHandler.Create<string,string,string,string,string>(async(password, domain, user, computer, ticket) =>
+            {
+                if(user == null && computer == null)
+                    throw new Exception("User or computer must be supplied");
+                
+                var key = new KerberosKey(password, new PrincipalName(PrincipalNameType.NT_UNKNOWN, domain.ToUpper(), new[] {user ?? computer}), saltType: SaltType.ActiveDirectoryUser);
+                var authenticator =  new KerberosAuthenticator(new KerberosValidator(key));
+                var claims = await authenticator.Authenticate(ticket);
+                Console.WriteLine($"Principal: {claims.Name}");
+                Console.WriteLine($"Roles: {string.Join(',', claims.FindAll(claims.RoleClaimType).Select(x => x.Value))}");
+            });
+            
+            
+            
             var rootCommand = new RootCommand();
             rootCommand.AddCommand(getTicketCommand);
+            rootCommand.AddCommand(validateTicket);
             return await rootCommand.InvokeAsync(args);
+            
         }
     }
 }
