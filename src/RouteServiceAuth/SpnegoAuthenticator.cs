@@ -14,14 +14,15 @@ namespace RouteServiceAuth
     {
         private readonly KerberosAuthenticator _authenticator;
 
-        public SpnegoAuthenticator(SpnegoAuthenticationOptions options)
+        public SpnegoAuthenticator(IOptions<SpnegoAuthenticationOptions> options)
         {
+            var spnegoAuthenticationOptions = options.Value;
             
-            if(options.PrincipalName == null)
+            if(spnegoAuthenticationOptions.PrincipalName == null)
                 throw new InvalidOperationException(@"Principal name must be in either DOMAIN\account or account@domain format and is case sensitive");
-            if(options.PrincipalPassword == null)
+            if(spnegoAuthenticationOptions.PrincipalPassword == null)
                 throw new InvalidOperationException(@"Principal password is not specified");
-            var split = options.PrincipalName.Split(@"\");
+            var split = spnegoAuthenticationOptions.PrincipalName.Split(@"\");
             string realm, principal;
             if (split.Length == 2) // DOMAIN\account
             {
@@ -30,21 +31,21 @@ namespace RouteServiceAuth
             }
             else
             {
-                split = options.PrincipalName.Split("@"); // user@domain
+                split = spnegoAuthenticationOptions.PrincipalName.Split("@"); // user@domain
                 if (split.Length != 2) // DOMAIN\account
                     throw new InvalidOperationException(@"Principal name must be in either DOMAIN\account or account@domain format and is case sensitive");
                 principal = split[0];
                 realm = split[1].ToUpper();
             }
 
-            if (options.PrincipalPassword != null)
+            if (spnegoAuthenticationOptions.PrincipalPassword != null)
             {
-                var kerberosKey = new KerberosKey(options.PrincipalPassword, new PrincipalName(PrincipalNameType.NT_UNKNOWN, realm, new[] { principal }), saltType: SaltType.ActiveDirectoryUser);
+                var kerberosKey = new KerberosKey(spnegoAuthenticationOptions.PrincipalPassword, new PrincipalName(PrincipalNameType.NT_UNKNOWN, realm, new[] { principal }), saltType: SaltType.ActiveDirectoryUser);
                 _authenticator = new KerberosAuthenticator(new KerberosValidator(kerberosKey));
             }
             else
             {
-                _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(options.KeytabFile)));
+                _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(spnegoAuthenticationOptions.KeytabFile)));
             }
 
             _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
