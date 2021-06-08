@@ -53,6 +53,8 @@ namespace RouteServiceAuth
         
         public void Configure(IApplicationBuilder app)
         {
+            var ctx = app.ApplicationServices.GetRequiredService<IHttpContextAccessor>();
+            
             app.UseKerberosIngressProxy();
             app.UseKerberosEgressProxy();
         }
