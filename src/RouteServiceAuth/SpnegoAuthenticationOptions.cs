@@ -8,6 +8,7 @@ namespace RouteServiceAuth
     {
        
         public LdapOptions Ldap { get; set; } = new LdapOptions();
+        public string PrincipalName { get; set; } = Environment.GetEnvironmentVariable("PRINCIPAL_NAME");
         public string PrincipalPassword { get; set; } = Environment.GetEnvironmentVariable("PRINCIPAL_PASSWORD");
 
         /// <summary>

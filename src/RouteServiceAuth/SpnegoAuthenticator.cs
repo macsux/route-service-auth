@@ -1,82 +1,61 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Security.Authentication;
 using System.Security.Claims;
-// using System.Security.Principal;
 using System.Threading.Tasks;
 using Kerberos.NET;
 using Kerberos.NET.Crypto;
-using Kerberos.NET.Entities.Pac;
-using Microsoft.Extensions.Configuration;
+using Kerberos.NET.Entities;
 using Microsoft.Extensions.Options;
-using Novell.Directory.Ldap;
-using SecurityIdentifier = RouteServiceAuth.Kerberos.NET.SecurityIdentifier;
 
 namespace RouteServiceAuth
 {
     public class SpnegoAuthenticator
     {
-        private readonly SpnegoAuthenticationOptions _options = new SpnegoAuthenticationOptions();
-        // public SpnegoAuthenticationOptions Options => _options.CurrentValue;
-        private bool _groupsLoaded = false;
-        private KerberosAuthenticator _authenticator;
-        private IDisposable _monitorHandle;
-        private Dictionary<string, string> _sidsToGroupNames = new Dictionary<string, string>();
+        private readonly KerberosAuthenticator _authenticator;
 
-
-        public SpnegoAuthenticator(IConfiguration configuration)
+        public SpnegoAuthenticator(SpnegoAuthenticationOptions options)
         {
-            configuration.Bind(_options);
-            // _monitorHandle = options.OnChange(CreateAuthenticator);
-            CreateAuthenticator(_options);
-        }
-
-
-        private void CreateAuthenticator(SpnegoAuthenticationOptions options)
-        {
-            if (options.PrincipalPassword != null)
-                _authenticator = new KerberosAuthenticator(new KerberosValidator(new KerberosKey(options.PrincipalPassword)));
-            else
-                _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(options.KeytabFile)));
-            _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
-            if (options.Ldap.Server != null && options.Ldap.Username != null && options.Ldap.Password != null)
+            
+            if(options.PrincipalName == null)
+                throw new InvalidOperationException(@"Principal name must be in either DOMAIN\account or account@domain format and is case sensitive");
+            if(options.PrincipalPassword == null)
+                throw new InvalidOperationException(@"Principal password is not specified");
+            var split = options.PrincipalName.Split(@"\");
+            string realm, principal;
+            if (split.Length == 2) // DOMAIN\account
             {
-                try
-                {
-                    using var cn = new LdapConnection();
-                    cn.Connect(options.Ldap.Server, options.Ldap.Port);
-                    cn.Bind(options.Ldap.Username, options.Ldap.Password);
-                    _sidsToGroupNames = cn.Search(options.Ldap.GroupsQuery, LdapConnection.ScopeSub, options.Ldap.Filter, null, false)
-                        .ToDictionary(x => new SecurityIdentifier(x.GetAttribute("objectSid").ByteValue, 0).Value, x => x.GetAttribute("sAMAccountName").StringValue);
-                    _groupsLoaded = true;
-                }
-                catch (Exception e)
-                {
-                    throw new AuthenticationException("Failed to load groups from LDAP", e);
-                }
+                realm = split[0].ToUpper();
+                principal = split[1];
             }
+            else
+            {
+                split = options.PrincipalName.Split("@"); // user@domain
+                if (split.Length != 2) // DOMAIN\account
+                    throw new InvalidOperationException(@"Principal name must be in either DOMAIN\account or account@domain format and is case sensitive");
+                principal = split[0];
+                realm = split[1].ToUpper();
+            }
+
+            if (options.PrincipalPassword != null)
+            {
+                var kerberosKey = new KerberosKey(options.PrincipalPassword, new PrincipalName(PrincipalNameType.NT_UNKNOWN, realm, new[] { principal }), saltType: SaltType.ActiveDirectoryUser);
+                _authenticator = new KerberosAuthenticator(new KerberosValidator(kerberosKey));
+            }
+            else
+            {
+                _authenticator = new KerberosAuthenticator(new KeyTable(File.ReadAllBytes(options.KeytabFile)));
+            }
+
+            _authenticator.UserNameFormat = UserNameFormat.DownLevelLogonName;
         }
+        
 
         public async Task<ClaimsIdentity> Authenticate(string base64Token)
         {
             var identity = await _authenticator.Authenticate(base64Token);
-            MapSidsToGroupNames(identity);
             return identity;
         }
-        private void MapSidsToGroupNames(ClaimsIdentity identity)
-        {
-            if (!_groupsLoaded) return;
-            foreach (var sidGroupClaim in identity.Claims.Where(x => x.Type == ClaimTypes.GroupSid).ToList())
-            {
-                var sid = sidGroupClaim.Value;
-                if (!_sidsToGroupNames.TryGetValue(sid, out var group)) continue;
-                if (!identity.HasClaim(ClaimTypes.Role, group))
-                {
-                    identity.AddClaim(new Claim(ClaimTypes.Role, group));
-                }
-            }
-        }
+        
     }
 }
