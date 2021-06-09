@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,12 +21,7 @@ namespace RouteServiceAuth
     public static class ProxyApplicationBuilderExtensions
     {
         #region Service Collection
-        public static IServiceCollection AddKerberosClient(this IServiceCollection services)
-        {
-            services.AddSingleton<KerberosClientProvider>();
-            services.AddScoped(ctx => ctx.GetRequiredService<KerberosClientProvider>().Client);
-            return services;
-        }
+       
         
         public static IServiceCollection AddClaimTransformer<T>(this IServiceCollection services) where T : class, IClaimsTransformation
         {
@@ -33,39 +29,39 @@ namespace RouteServiceAuth
             services.AddSingleton<IClaimsTransformation>(ctx => ctx.GetRequiredService<T>());
             if (typeof(IStartupFilter).IsAssignableFrom(typeof(T)))
             {
-                services.AddSingleton<IStartupFilter>(ctx => (IStartupFilter)ctx.GetRequiredService<T>());
+                services.AddSingleton(ctx => (IStartupFilter)ctx.GetRequiredService<T>());
             }
             return services;
         }
         #endregion
 
         #region HttpContext
-        public static string GetAuthenticationSchemeName(this HttpContext ctx)
-        {
-            return $"{SpnegoProxyAuthenticationDefaults.AuthenticationScheme}-{ctx.Connection.LocalPort}";
-        }
 
         public static ProxyEntry GetProxyEntry(this HttpContext ctx)
         {
+            
             var direction = ctx.GetProxyDirection();
-            var options = ctx.RequestServices.GetRequiredService<IOptionsSnapshot<KerberosProxyOptions>>().Value;
+            var options = ctx.RequestServices.GetRequiredService<IOptionsSnapshot<ProxyOptions>>().Value;
+            
+            Exception NotFound() => new InvalidOperationException("Proxy config cannot be found for current port");
+            // return options.Egress.Union(options.Ingress).FirstOrDefault(x => x.ListenPort == ctx.Connection.LocalPort) ?? throw NotFound();
             switch (direction)
             {
                 case ProxyDirection.Egress:
-                    return options.Egress[ctx.Connection.LocalPort];
+                    return options.Egress.FirstOrDefault(x => x.ListenPort == ctx.Connection.LocalPort) ?? throw NotFound();
                 case ProxyDirection.Ingress:
-                    return options.Ingress[ctx.Connection.LocalPort];
+                    return options.Ingress.FirstOrDefault(x => x.ListenPort == ctx.Connection.LocalPort) ?? throw NotFound();
                 default:
-                    throw new InvalidOperationException("Proxy config cannot be found for current port");
+                    throw NotFound();
             }
         }
 
         public static ProxyDirection GetProxyDirection(this HttpContext ctx)
         {
-            var options = ctx.RequestServices.GetRequiredService<IOptionsSnapshot<KerberosProxyOptions>>().Value;
-            if (options.Ingress.ContainsKey(ctx.Connection.LocalPort))
+            var options = ctx.RequestServices.GetRequiredService<IOptionsSnapshot<ProxyOptions>>().Value;
+            if (options.Ingress.Any(x => x.ListenPort == ctx.Connection.LocalPort))
                 return ProxyDirection.Ingress;
-            if (options.Egress.ContainsKey(ctx.Connection.LocalPort))
+            if (options.Egress.Any(x => x.ListenPort == ctx.Connection.LocalPort))
                 return ProxyDirection.Egress;
             return 0;
         }
@@ -102,5 +98,23 @@ namespace RouteServiceAuth
                 ctx => ctx.GetProxyDirection() == ProxyDirection.Egress,
                 egressApp => egressApp.UseMiddleware<AttachKerberosTicketProxyMiddleware>());
         
+        public static IApplicationBuilder MapProxyPorts(this IApplicationBuilder app)
+        {
+            var proxyOptions = app.ApplicationServices.GetRequiredService<IOptionsMonitor<ProxyOptions>>();
+            var appConfig = proxyOptions.CurrentValue;
+            var urls = 
+                appConfig.Egress
+                    .Union(appConfig.Ingress)
+                    .Select(entry => $"http://0.0.0.0:{entry.ListenPort}")
+                    .ToArray();
+            var address = app.ServerFeatures.Get<IServerAddressesFeature>();
+            address.Addresses.Clear();
+            foreach (var url in urls)
+            {
+                address.Addresses.Add(url);
+            }
+
+            return app;
+        }
     }
 }

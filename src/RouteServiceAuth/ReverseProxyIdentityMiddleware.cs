@@ -15,9 +15,11 @@ namespace RouteServiceAuth
     public class ReverseProxyIdentityMiddleware : ProxyMiddlewareBase
     {
         private readonly ILogger _logger;
-        private readonly IOptionsMonitor<KerberosProxyOptions> _proxyOptions;
+        private readonly IOptionsMonitor<ProxyOptions> _proxyOptions;
 
-        public ReverseProxyIdentityMiddleware(RequestDelegate next, ILogger<ReverseProxyIdentityMiddleware> logger, IOptionsMonitor<KerberosProxyOptions> proxyOptions) : base(next)
+        public ReverseProxyIdentityMiddleware(RequestDelegate next, 
+            ILogger<ReverseProxyIdentityMiddleware> logger, 
+            IOptionsMonitor<ProxyOptions> proxyOptions) : base(next)
         {
             _logger = logger;
             _proxyOptions = proxyOptions;
@@ -28,18 +30,18 @@ namespace RouteServiceAuth
             HttpResponseMessage response;
             var config = context.GetProxyEntry();
             var forwardTo = config.TargetUrl;
-            if (forwardTo == null && _proxyOptions.CurrentValue.DestinationHeaderName != null) // if it's set, it's a static route (like sidecar)
+            var isRunningInCloudFoundry = Environment.GetEnvironmentVariable("VCAP_APPLICATION") != null;
+            var destinationHeaderName = _proxyOptions.CurrentValue.DestinationHeaderName;
+            if (destinationHeaderName == null && isRunningInCloudFoundry)
+                destinationHeaderName = KnownHeaders.X_CF_Forwarded_Url;
+            if (forwardTo == null && !context.Request.Headers.TryGetForwardingAddressFromHeader(destinationHeaderName, out forwardTo)) 
             {
-                var isRunningInCloudFoundry = Environment.GetEnvironmentVariable("VCAP_APPLICATION") != null;
-                if (!isRunningInCloudFoundry || context.Request.Headers.TryGetCfRouteServiceForwardAddress(out forwardTo))
+                response = new HttpResponseMessage(HttpStatusCode.BadRequest)
                 {
-                    response = new HttpResponseMessage(HttpStatusCode.BadRequest)
-                    {
-                        Content = new StringContent($"Destination route cannot be determined")
-                    };
-                    _logger.LogDebug($"Received request without {Constants.X_CF_Forwarded_Url} header and no static forwarding route is set");
-                    return response;
-                }
+                    Content = new StringContent($"Destination route cannot be determined")
+                };
+                _logger.LogDebug($"Received request without {KnownHeaders.X_CF_Forwarded_Url} header and no static forwarding route is set");
+                return response;
             }
 
             var forwardContext = context.ForwardTo(forwardTo);
@@ -47,11 +49,11 @@ namespace RouteServiceAuth
 
             if (context.User.Identity.IsAuthenticated)
             {
-                forwardContext.UpstreamRequest.Headers.Add(Constants.X_CF_Identity, context.User.Identity.Name);
+                forwardContext.UpstreamRequest.Headers.Add(KnownHeaders.X_CF_Identity, context.User.Identity.Name);
                 var roles = string.Join(",", context.User.Claims.Where(x => x.Type == ClaimTypes.Role).Select(x => x.Value));
                 if (!string.IsNullOrEmpty(roles))
                 {
-                    forwardContext.UpstreamRequest.Headers.Add(Constants.X_CF_Roles, roles);
+                    forwardContext.UpstreamRequest.Headers.Add(KnownHeaders.X_CF_Roles, roles);
                 }
             }
 

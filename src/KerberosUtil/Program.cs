@@ -56,7 +56,7 @@ namespace KerberosUtil
                 await client.Authenticate(kerbCred);
 
                 var ticket = await client.GetServiceTicket(spn);
-                var ticket64 = Convert.ToBase64String(ticket.EncodeApplication().ToArray());
+                var ticket64 = Convert.ToBase64String(ticket.EncodeGssApi().ToArray());
                 Console.WriteLine(ticket64);
                 
             });

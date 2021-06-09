@@ -12,7 +12,7 @@ namespace RouteServiceAuth
 
         public ProxyMiddlewareBase(RequestDelegate next)
         {
-            var proxyOptions = new ProxyOptions
+            var proxyOptions = new ProxyKit.ProxyOptions
             {
                 HandleProxyRequest = ProxyRequest,
             };

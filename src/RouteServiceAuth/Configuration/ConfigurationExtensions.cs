@@ -2,18 +2,27 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Steeltoe.Common;
 
 namespace RouteServiceAuth
 {
     public static class ConfigurationExtensions
     {
-        public static IServiceCollection AddSidecarOptions(this IServiceCollection services, IConfiguration config)
+        public static IServiceCollection ConfigureProxyOptions(this IServiceCollection services, IConfiguration config)
         {
-            services.Configure<KerberosProxyOptions>(config.GetSection("Proxy"))
-                .PostConfigure<KerberosProxyOptions>(x =>
+            services.Configure<ProxyOptions>(config.GetSection("Proxy"));
+            services.AddOptions<ProxyOptions>()
+                .Configure(opt =>
                 {
-                    x.Egress = config.GetSection(nameof(x.Egress)).Get<List<ProxyEntry>>()?.ToDictionary(x => x.ListenPort, x => x) ?? new Dictionary<int, ProxyEntry>();
-                    x.Ingress = config.GetSection(nameof(x.Ingress)).Get<List<ProxyEntry>>()?.ToDictionary(x => x.ListenPort, x => x) ?? new Dictionary<int, ProxyEntry>();
+                    if (Platform.IsCloudFoundry)
+                    {
+                        opt.DestinationHeaderName = KnownHeaders.X_CF_Forwarded_Url;
+                    }
+                })
+                .PostConfigure(opt =>
+                {
+                    opt.IdentityHttpHeaderName ??= KnownHeaders.X_CF_Identity;
+                    opt.RolesHttpHeaderName ??= KnownHeaders.X_CF_Roles;
                 });
             return services;
         }

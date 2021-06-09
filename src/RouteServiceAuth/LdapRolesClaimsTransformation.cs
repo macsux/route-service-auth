@@ -13,6 +13,9 @@ using RouteServiceAuth.Kerberos.NET;
 
 namespace RouteServiceAuth
 {
+    /// <summary>
+    /// Transforms current security principal by converting SIDs to AD role names. Mapping is loaded on startup from LDAP 
+    /// </summary>
     public class LdapRolesClaimsTransformer : IStartupFilter, IClaimsTransformation
     {
         private readonly LdapOptions _options;
