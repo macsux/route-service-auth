@@ -14,7 +14,7 @@ namespace RouteServiceAuth
     {
         private readonly KerberosAuthenticator _authenticator;
 
-        public SpnegoAuthenticator(IOptions<SpnegoAuthenticationOptions> options)
+        public SpnegoAuthenticator(IOptionsSnapshot<SpnegoAuthenticationOptions> options)
         {
             var spnegoAuthenticationOptions = options.Value;
             
