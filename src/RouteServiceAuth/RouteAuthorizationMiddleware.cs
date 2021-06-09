@@ -40,7 +40,6 @@ namespace RouteServiceAuth
             var authenticationScheme = proxyConfig.CredentialsId;
             
             var matchingRoute = proxyConfig.Routes?
-                .OrderBy(x => x.Order)
                 .FirstOrDefault(x => new Ant(x.Path).IsMatch(context.Request.Path)) ?? _defaultRoute;
 
             

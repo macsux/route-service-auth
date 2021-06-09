@@ -12,6 +12,5 @@ namespace RouteServiceAuth
 
         public string Path { get; set; }
         public string PolicyName { get; set; }
-        public int Order { get; set; }
     }
 }
