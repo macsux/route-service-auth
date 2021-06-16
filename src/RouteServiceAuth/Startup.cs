@@ -9,6 +9,7 @@ using IdentityServer4.Endpoints;
 using IdentityServer4.Models;
 using IdentityServer4.Stores;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -74,6 +75,7 @@ namespace RouteServiceAuth
         
         public void Configure(IApplicationBuilder app)
         {
+            app.UseForwardedHeaders(new ForwardedHeadersOptions() { ForwardedHeaders = ForwardedHeaders.All});
             app.UseIdentityServer();
             app.UseSpnegoIngressProxy();
             app.UseSpnegoEgressProxy();

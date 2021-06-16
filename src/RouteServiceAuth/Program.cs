@@ -36,7 +36,7 @@ namespace RouteServiceAuth
                 .AddCloudFoundry()
                 .ConfigureAppConfiguration(cfg =>
                 {
-                    cfg.AddJsonFile("appsettings.CloudFoundry.json");
+                    // cfg.AddJsonFile("appsettings.CloudFoundry.json");
                     if (Environment.GetEnvironmentVariable("ENABLE_CONFIG_SERVER")?.ToLower() != "false")
                     {
                         cfg = cfg.AddConfigServer();

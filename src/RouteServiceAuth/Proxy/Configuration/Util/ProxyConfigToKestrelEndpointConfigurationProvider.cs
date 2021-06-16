@@ -57,8 +57,8 @@ namespace RouteServiceAuth.Proxy.Configuration.Util
         public override void Load()
         {
             _config.GetReloadToken().RegisterChangeCallback(_ => Reload(), null);
-            var egress = _config.GetSection("Proxy:Egress").Get<List<ProxyEntry>>();
-            var ingress = _config.GetSection("Proxy:Ingress").Get<List<ProxyEntry>>();
+            var egress = _config.GetSection("Proxy:Egress").Get<List<ProxyEntry>>() ?? new List<ProxyEntry>();
+            var ingress = _config.GetSection("Proxy:Ingress").Get<List<ProxyEntry>>() ?? new List<ProxyEntry>();
             // if (!ingress.Any() && Platform.IsCloudFoundry)
             // {
             //     if (!int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var port))
