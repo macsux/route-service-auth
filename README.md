@@ -149,6 +149,17 @@ If `TargetUrl` is not set, the destination is selected dynamically from the valu
 
 Kerberos tickets contain AD groups the user belongs to, but they are in [SID](https://en.wikipedia.org/wiki/Security_Identifier) format, and are not sent downstream by default. If you want to make assertions on roles, you need to configure LDAP for the route service which will be used to map SIDs to their common names. When configured it will send AD groups as part of the principal propagation mechanism. Groups are loaded once and cached in memory, so no LDAP requests are made per request. The proxy will do a periodic light weight incremental query to check if AD groups configuration has changed. The associated middleware will expand full hierarchy of AD groups based on their associations (ex. if user is only assigned group called `Foo`, and `Foo` is *memberOf* group `Bar`, then principal will show that the user belong to both). 
 
+```json
+{
+  "Ldap": {
+    "Server": "${Kerberos:Kdc}", // defaults to kdc
+    "GroupsQuery": "CN=Users,DC=almirex,DC=dc",
+    "Filter":  "(objectClass=group)",
+    "CredentialID": "ThisApp",
+    "RefreshFrequency": "00:00:10"
+  },
+}
+```
 
 
 ## Secrets management
