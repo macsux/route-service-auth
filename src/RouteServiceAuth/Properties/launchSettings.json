@@ -2,12 +2,11 @@
   "profiles": {
     "RouteServiceAuth": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "launchBrowser": false,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "PRINCIPAL_PASSWORD": "SomePassword"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       },
-      "applicationUrl": "http://localhost:5000"
+      "applicationUrl": "http://localhost:8080"
     }
   }
 }

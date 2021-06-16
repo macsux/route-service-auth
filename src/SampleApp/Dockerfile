@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/core/sdk:3.1 AS build
+FROM mcr.microsoft.com/dotnet/core/sdk:5.0 AS build
 WORKDIR src
 # copy nuget.config files at solution and project levels
 # copy any local nuget sources that are subfolders of the solution
@@ -6,7 +6,7 @@ COPY ["SampleApp/SampleApp.csproj", "SampleApp/SampleApp.csproj"]
 RUN dotnet restore "SampleApp\SampleApp.csproj"
 COPY . .
 RUN dotnet msbuild /p:RestorePackages=false /t:PublishLayer /p:PublishDir=/layer/ /p:DockerLayer=All "SampleApp/SampleApp.csproj"
-FROM mcr.microsoft.com/dotnet/core/aspnet:3.1 AS run
+FROM mcr.microsoft.com/dotnet/core/aspnet:5.0 AS run
 WORKDIR /app
 COPY --from=build /layer/package ./
 COPY --from=build /layer/earlypackage ./

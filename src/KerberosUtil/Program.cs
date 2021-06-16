@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Kerberos.NET;
 using Kerberos.NET.Client;
@@ -71,7 +74,7 @@ namespace KerberosUtil
                     description: "Domain name") { Required = true},
                 new Option<string>(
                     "--user",
-                    description: "Username if this is a User Account (case sensitive)"),
+                    description: "Username if this is a User Account (case sensitive - without domain portion)"),
                 new Option<string>(
                     "--computer",
                     description: "Computer name (without $) if this is a Computer Account  (case sensitive)"),
@@ -91,11 +94,36 @@ namespace KerberosUtil
                 Console.WriteLine($"Roles: {string.Join(',', claims.FindAll(claims.RoleClaimType).Select(x => x.Value))}");
             });
             
+            var generateKey = new Command("generate-key")
+            {
+                new Option<bool>(
+                    "--single-line",
+                    description: "Generates PEM without any line breaks"),
+            };
+            generateKey.Handler = CommandHandler.Create<bool>((singleLine) =>
+            {
+                const int defaultPemLineLength = 67;
+                var rsa = RSA.Create();
+                var key64 = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
+                var sb = new StringBuilder();
+                sb.AppendLine("-----BEGIN RSA PRIVATE KEY-----");
+                var wrapPattern = "(.{" + defaultPemLineLength + "})";
+                sb.AppendLine(Regex.Replace(key64, wrapPattern, "$1\n", RegexOptions.Singleline));
+                sb.Append("-----END RSA PRIVATE KEY-----");
+                var pem = sb.ToString();
+                if (singleLine)
+                {
+                    pem = Regex.Replace(pem, @"[\n\r]+", @"\n", RegexOptions.Singleline);
+                }
+                Console.WriteLine(pem);
+            });
+
             
             
             var rootCommand = new RootCommand();
             rootCommand.AddCommand(getTicketCommand);
             rootCommand.AddCommand(validateTicket);
+            rootCommand.AddCommand(generateKey);
             return await rootCommand.InvokeAsync(args);
             
         }

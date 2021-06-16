@@ -1,64 +1,85 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Reflection.Metadata;
-using System.Security.Claims;
-using Kerberos.NET.Client;
-using Kerberos.NET.Configuration;
-using Kerberos.NET.Credentials;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Security.Cryptography;
+using FluentValidation;
+using IdentityServer4;
+using IdentityServer4.Configuration;
+using IdentityServer4.Endpoints;
+using IdentityServer4.Models;
+using IdentityServer4.Stores;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using ProxyKit;
-using RouteServiceAuth.Kerberos.NET;
+using RouteServiceAuth.Authentication.Spnego;
+using RouteServiceAuth.Kerberos;
+using RouteServiceAuth.LdapGroups;
+using RouteServiceAuth.Proxy;
+using RouteServiceAuth.Proxy.Configuration;
+using RouteServiceAuth.Proxy.Configuration.Validation;
 using Steeltoe.Common;
+using ProxyOptions = RouteServiceAuth.Proxy.Configuration.ProxyOptions;
 
 namespace RouteServiceAuth
 {
     public class Startup
     {
-        private readonly ILogger<Startup> _logger;
 
         private readonly IConfiguration _configuration;
+        private readonly IHostEnvironment _environment;
 
-        public Startup(ILogger<Startup> logger, IConfiguration configuration)
+        public Startup(IConfiguration configuration, IHostEnvironment environment)
         {
-            _logger = logger;
             _configuration = configuration;
+            _environment = environment;
         }
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddAuthentication()
-                .AddSpnegoProxy();
-            services.AddHttpContextAccessor();
-            services.AddAuthorization(cfg =>
+            var identityServerBuilder = services.AddJwtIssuing();
+            
+            if (_environment.IsDevelopment())
             {
-                cfg.AddPolicy(AuthorizationPolicies.RequireAuthenticatedUser, policy => policy.RequireAuthenticatedUser());
-            });
-
-            services.ConfigureProxyOptions(_configuration);
-            services.Configure<KerberosOptions>(_configuration.GetSection("Kerberos"));
-            services.Configure<LdapOptions>(_configuration.GetSection("Ldap"));
+                identityServerBuilder.AddDeveloperSigningCredential();
+            }
+            else
+            {
+                services.AddSingleton<ISigningCredentialStore, CertificateStore>();
+                services.AddSingleton<IValidationKeysStore, CertificateStore>();
+            }
+            
+            services.AddProxy();
+            services.AddAuthentication(opt =>
+                {
+                    opt.DefaultAuthenticateScheme = SpnegoAuthenticationDefaults.AuthenticationScheme;
+                    opt.DefaultChallengeScheme = SpnegoAuthenticationDefaults.AuthenticationScheme;
+                })
+                .AddSpnego();
+            
+            services.AddAuthorization(cfg => cfg.AddPolicy(AuthorizationPolicies.RequireAuthenticatedUser, policy => policy.RequireAuthenticatedUser()));
             services.AddClaimTransformer<LdapRolesClaimsTransformer>();
             services.AddSingleton<KerberosClientProvider>();
-            services.AddProxy();
+
+            services.AddOptions<ProxyOptions>().BindConfiguration("Proxy").Validate();
+            services.AddOptions<KerberosOptions>().BindConfiguration("Kerberos").Validate();
+            services.AddOptions<LdapOptions>().BindConfiguration("Ldap").Validate();
             
+            services.AddSingleton<ValidatorFactory>();
+            services.AddTransient(typeof(IValidator<>), typeof(ValidatorFactory.ServiceProviderWrappedValidator<>));
         }
         
         public void Configure(IApplicationBuilder app)
         {
-            app.UseKerberosIngressProxy();
-            app.UseKerberosEgressProxy();
-
-            app.MapProxyPorts();
+            app.UseIdentityServer();
+            app.UseSpnegoIngressProxy();
+            app.UseSpnegoEgressProxy();
+            
         }
     }
+
+    
 }

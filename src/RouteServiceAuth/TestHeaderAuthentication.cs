@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using RouteServiceAuth.Authentication.Spnego;
+
 //using System.Linq;
 
 namespace RouteServiceAuth
