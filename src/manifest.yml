@@ -1,8 +1,0 @@
-applications:
-- name: iwa-route-service
-  path: RouteServiceAuth/bin/Release/netcoreapp3.1/publish
-  env:
-    PRINCIPAL_PASSWORD: SomePassword
-  instances: 1
-  memory: 512M
-  stack: cflinuxfs3
